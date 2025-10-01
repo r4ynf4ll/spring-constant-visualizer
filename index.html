@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Spring Constant Visualizer</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f4f4f4;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+    }
+    h1 {
+      margin-top: 32px;
+      color: #333;
+    }
+    .container {
+      background: #fff;
+      padding: 24px 32px;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      margin-top: 32px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .slider {
+      width: 400px;
+      margin: 24px 0 8px 0;
+    }
+    .k-value {
+      font-size: 1.2em;
+      margin-bottom: 16px;
+      color: #0077cc;
+    }
+    canvas {
+      background: #e9ecef;
+      border-radius: 8px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+      margin-bottom: 16px;
+    }
+    .note {
+      color: #666;
+      font-size: 0.95em;
+      margin-top: 8px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Spring Constant Visualizer</h1>
+  <div class="container">
+    <div class="k-value">Spring Constant (k): <span id="kDisplay">0</span></div>
+    <input type="range" min="-100" max="100" value="50" class="slider" id="kSlider">
+    <div class="k-value">Displacement (x): <span id="xDisplay">0</span></div>
+    <input type="range" min="-100" max="100" value="0" class="slider" id="xSlider">
+    <div class="k-value">Equilibrium Position (x₀): <span id="x0Display">0</span></div>
+    <input type="range" min="-100" max="100" value="0" class="slider" id="x0Slider">
+    <div class="k-value">Force (F): <span id="fDisplay">0</span></div>
+    <div class="equation" style="font-size:1.3em; margin: 12px 0; color:#333; background:#eef; border-radius:8px; padding:8px 16px;">
+      <span id="eqDisplay">F = -k(x - x₀) = 0</span>
+    </div>
+    <canvas id="springCanvas" width="600" height="180"></canvas>
+    <div class="note">Adjust k, x, and x₀ to see the spring force. The spring stretches or compresses according to F = -k(x - x₀).<br>
+      Arrow shows direction and magnitude of force.</div>
+  </div>
+  <script>
+    const canvas = document.getElementById('springCanvas');
+    const ctx = canvas.getContext('2d');
+    const kSlider = document.getElementById('kSlider');
+    const xSlider = document.getElementById('xSlider');
+    const x0Slider = document.getElementById('x0Slider');
+    const kDisplay = document.getElementById('kDisplay');
+    const xDisplay = document.getElementById('xDisplay');
+    const x0Display = document.getElementById('x0Display');
+    const fDisplay = document.getElementById('fDisplay');
+
+    // Draw a refined spring with smooth coils
+    function drawSpring(k, x, x0, F) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      // Parameters
+      const baseX = 60;
+      const baseY = canvas.height / 2;
+      const springRestLength = 260;
+      const springMaxStretch = 480;
+      const springMinStretch = 60;
+      // Map x - x0 to stretch
+      let stretch = springRestLength + (x - x0) * 1.5;
+      stretch = Math.max(springMinStretch, Math.min(springMaxStretch, stretch));
+      // Draw fixed wall
+      ctx.fillStyle = '#444';
+      ctx.fillRect(baseX - 24, baseY - 40, 24, 80);
+      // Draw spring (visible coils, metallic gray)
+      ctx.save();
+      ctx.translate(baseX, baseY);
+      ctx.strokeStyle = '#b0b0b0'; // metallic gray
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      let coils = 20;
+      let points = coils * 20; // more points for smoothness
+      let amplitude = 14;
+      ctx.moveTo(0, 0);
+      for (let i = 0; i <= points; i++) {
+        let x = stretch * (i / points);
+        let y = amplitude * Math.sin(i * coils * 2 * Math.PI / points);
+        ctx.lineTo(x, y);
+      }
+      ctx.lineTo(stretch, 0);
+      ctx.stroke();
+      ctx.restore();
+      // Draw mass
+      ctx.fillStyle = '#888';
+      ctx.fillRect(baseX + stretch, baseY - 28, 48, 56);
+      ctx.strokeStyle = '#555';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(baseX + stretch, baseY - 28, 48, 56);
+      // Draw force arrow
+      ctx.save();
+      ctx.beginPath();
+      let arrowStartX = baseX + stretch + 24;
+      let arrowY = baseY;
+      let arrowLength = Math.max(-60, Math.min(60, F)); // Clamp arrow length
+      ctx.strokeStyle = '#e91e63';
+      ctx.lineWidth = 5;
+      ctx.moveTo(arrowStartX, arrowY);
+      ctx.lineTo(arrowStartX + arrowLength, arrowY);
+      // Arrow head
+      ctx.lineTo(arrowStartX + arrowLength - Math.sign(arrowLength) * 10, arrowY - 8);
+      ctx.moveTo(arrowStartX + arrowLength, arrowY);
+      ctx.lineTo(arrowStartX + arrowLength - Math.sign(arrowLength) * 10, arrowY + 8);
+      ctx.stroke();
+      ctx.restore();
+      // Label force
+      ctx.save();
+      ctx.fillStyle = '#e91e63';
+      ctx.font = 'bold 1.1em Arial';
+      ctx.textAlign = arrowLength >= 0 ? 'left' : 'right';
+      ctx.fillText('F', arrowStartX + arrowLength + (arrowLength >= 0 ? 12 : -12), arrowY - 12);
+      ctx.restore();
+    }
+
+    function update() {
+      const k = parseInt(kSlider.value, 10);
+      const x = parseInt(xSlider.value, 10);
+      const x0 = parseInt(x0Slider.value, 10);
+      const F = -k * (x - x0);
+      kDisplay.textContent = k;
+      xDisplay.textContent = x;
+      x0Display.textContent = x0;
+      fDisplay.textContent = F;
+      // Show equation with live values
+      const eq = `F = -k(x - x₀) = -(${k})(${x} - ${x0}) = ${F}`;
+      document.getElementById('eqDisplay').textContent = eq;
+      drawSpring(k, x, x0, F);
+    }
+
+    kSlider.addEventListener('input', update);
+    xSlider.addEventListener('input', update);
+    x0Slider.addEventListener('input', update);
+    update();
+  </script>
+</body>
+</html>
